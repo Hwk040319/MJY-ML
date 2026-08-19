@@ -24,7 +24,10 @@ import torch; print(torch.cuda.is_available())   # False 면 런타임 -> T4 GPU
 
 # 데이터는 Google Drive 공유 링크로 배포됩니다 (운영진 공지 확인)
 !pip install -q gdown
-!gdown "https://drive.google.com/uc?id=1PJNyDDdYd47wXD83DiW9PqFzbe7TLl0n" -O data.tar
+FILE_ID = "13DWY5tg_L4SYxujkdVQ89qEQZC08lr7L"   # 1회차 강의 실습용 (22MB)
+# FILE_ID = "1PJNyDDdYd47wXD83DiW9PqFzbe7TLl0n"   # 회차 사이 팀 실험용 (11GB)
+
+!gdown "https://drive.google.com/uc?id=$FILE_ID" -O data.tar
 !mkdir -p data && tar -xf data.tar -C data
 
 !python check_data.py --data-root data
