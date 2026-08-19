@@ -12,7 +12,7 @@
 
 ## 5분 안에 시작하기 (Google Colab)
 
-노트북으로 바로 시작하려면 [notebooks/00_quickstart_colab.ipynb](notebooks/00_quickstart_colab.ipynb) 를
+노트북으로 바로 시작하려면 [00_quickstart_colab.ipynb](00_quickstart_colab.ipynb) 를
 Colab에서 열어 위에서부터 실행하세요. 아래는 같은 내용을 요약한 것입니다.
 
 ```python
