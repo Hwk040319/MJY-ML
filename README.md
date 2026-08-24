@@ -36,7 +36,7 @@ FILE_ID = "13DWY5tg_L4SYxujkdVQ89qEQZC08lr7L"   # 1회차 강의 실습용 (22MB
 
 | 시점 | 받을 파일 |
 |---|---|
-| 1회차 강의 실습 | `battery_lecture_sample.tar` (약 300장) |
+| 1회차 강의 실습 | `battery_lecture_sample.tar` (약 700장 · 22MB) |
 | 회차 사이 팀 실험 | `battery_train_val.tar` (약 11GB) |
 
 `private_test` 는 배포되지 않습니다. 상세 설정과 문제 해결은 [docs/SETUP.md](docs/SETUP.md) 를 보세요.
