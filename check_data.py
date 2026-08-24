@@ -50,7 +50,6 @@ def check_split(data_root: Path, split: str, has_labels: bool):
     if problems:
         return problems, info
 
-    # 1) 라벨에는 있는데 파일이 없는 경우
     listed = set(df["image_name"])
     missing = listed - files
     if missing:
@@ -59,7 +58,6 @@ def check_split(data_root: Path, split: str, has_labels: bool):
             f"(예: {sorted(missing)[:3]})"
         )
 
-    # 2) 파일은 있는데 라벨이 없는 경우 (학습에서 그냥 무시되어 티가 안 납니다)
     orphan = files - listed
     if orphan:
         problems.append(
@@ -67,12 +65,10 @@ def check_split(data_root: Path, split: str, has_labels: bool):
             f"(예: {sorted(orphan)[:3]})"
         )
 
-    # 3) 파일명 중복
     dup = df["image_name"].duplicated().sum()
     if dup:
         problems.append(f"[{split}] labels.csv 에 중복된 image_name {dup}건")
 
-    # 4) target 값 범위
     bad = set(df["target"].unique()) - VALID_TARGETS
     if bad:
         problems.append(f"[{split}] target 에 허용되지 않은 값: {sorted(bad)}")
@@ -136,8 +132,13 @@ def main():
         infos.append(info)
 
     p, info = check_split(data_root, SPLIT_TEST, has_labels=False)
-    problems += p
-    infos.append(info)
+    # private_test 는 참가자에게 배포되지 않습니다.
+    # 폴더가 없는 것이 정상이므로 문제로 집계하지 않습니다.
+    if info is None:
+        print(f"[{SPLIT_TEST}] 폴더 없음 (정상 — 참가자에게 배포되지 않는 분할입니다)")
+    else:
+        problems += p
+        infos.append(info)
 
     problems += check_leakage([i for i in infos if i])
 
