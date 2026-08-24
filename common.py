@@ -40,6 +40,14 @@ def get_transforms(image_size: int = 224, train: bool = False, augment: bool = F
 
     augment=True 일 때만 학습용 증강이 추가됩니다.
     검증/테스트에는 절대 증강을 넣지 않습니다. 평가 조건이 달라지기 때문입니다.
+
+    [수정 규칙]
+      아래 `train and augment` 블록은 자유롭게 바꿔도 됩니다. 학습에만 쓰입니다.
+
+      그 아래 기본 블록은 검증과 최종 채점에 쓰입니다. 채점은 운영진 환경의
+      기본 블록으로 실행되므로, 이 부분을 바꾸면 여러분의 모델이 학습 때와
+      다른 조건으로 채점되어 점수가 부당하게 낮아집니다. 수정하지 마세요.
+      입력 크기를 바꾸려면 코드가 아니라 --image-size 옵션을 사용하세요.
     """
     normalize = transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
 
