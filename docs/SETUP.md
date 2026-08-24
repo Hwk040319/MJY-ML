@@ -32,7 +32,7 @@ print(torch.cuda.is_available())
 
 | 파일 | 내용 | 용량 |
 |---|---|---|
-| `battery_lecture_sample.tar` | 1회차 강의 실습용 (약 300장) | 작음 · 링크 별도 공지 |
+| `battery_lecture_sample.tar` | 1회차 강의 실습용 (약 700장) | 약 22MB · FILE_ID `13DWY5tg_L4SYxujkdVQ89qEQZC08lr7L` |
 | `battery_train_val.tar` | 팀별 실험용 전체 train + public_val | 약 11GB · FILE_ID `1PJNyDDdYd47wXD83DiW9PqFzbe7TLl0n` |
 
 > `private_test` 는 배포되지 않습니다. 채점은 제출된 체크포인트로 운영진이 수행합니다.
