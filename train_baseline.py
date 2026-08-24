@@ -61,6 +61,17 @@ def build_model(unfreeze: bool, device):
     return model.to(device)
 
 
+def freeze_bn(module):
+    """BatchNorm 레이어를 eval 모드로 고정합니다.
+
+    requires_grad=False 는 가중치 업데이트만 막을 뿐, model.train() 상태에서
+    BatchNorm 의 running_mean/running_var 통계는 계속 갱신됩니다 (PyTorch 기본 동작).
+    "backbone 고정"이 이름 그대로 동작하려면 BatchNorm 도 eval 모드로 묶어야 합니다.
+    """
+    if isinstance(module, nn.BatchNorm2d):
+        module.eval()
+
+
 def main():
     args = parse_args()
     set_seed(args.seed)
@@ -104,7 +115,7 @@ def main():
 
     trainable = [p for p in model.parameters() if p.requires_grad]
     optimizer = torch.optim.AdamW(trainable, lr=args.lr)
-    scaler = torch.amp.GradScaler(enabled=(device.type == "cuda"))
+    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
 
     n_train = sum(p.numel() for p in trainable)
     print(f"학습 대상 파라미터 {n_train:,}개 "
@@ -120,6 +131,8 @@ def main():
 
     for epoch in range(1, args.epochs + 1):
         model.train()
+        if not args.unfreeze:
+            model.apply(freeze_bn)  # backbone 고정 시 BatchNorm 통계도 함께 고정
         running, seen, t0 = 0.0, 0, time.time()
 
         for images, targets, _ in train_loader:
