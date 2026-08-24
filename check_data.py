@@ -44,7 +44,7 @@ def check_split(data_root: Path, split: str, has_labels: bool):
 
     df = pd.read_csv(label_path)
 
-    for col in ["image_name", "target"]:
+    for col in ["image_name", "target", "experiment_id"]:
         if col not in df.columns:
             problems.append(f"[{split}] labels.csv 에 '{col}' 열이 없습니다")
     if problems:
@@ -132,8 +132,6 @@ def main():
         infos.append(info)
 
     p, info = check_split(data_root, SPLIT_TEST, has_labels=False)
-    # private_test 는 참가자에게 배포되지 않습니다.
-    # 폴더가 없는 것이 정상이므로 문제로 집계하지 않습니다.
     if info is None:
         print(f"[{SPLIT_TEST}] 폴더 없음 (정상 — 참가자에게 배포되지 않는 분할입니다)")
     else:
