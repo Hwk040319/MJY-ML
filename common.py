@@ -61,7 +61,7 @@ def get_transforms(image_size: int = 224, train: bool = False, augment: bool = F
             transforms.ToTensor(),
             normalize,
         ])
-
+    # ↓↓↓ 채점에 사용되는 블록입니다. 수정하지 마세요. ↓↓↓
     return transforms.Compose([
         transforms.Resize((image_size, image_size)),
         transforms.ToTensor(),
