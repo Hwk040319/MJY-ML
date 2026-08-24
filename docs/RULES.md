@@ -22,7 +22,20 @@
 
 - torchvision ImageNet 사전학습 가중치 사용
 - `train_baseline.py` 의 모든 CLI 옵션
-- 전처리·증강 코드 수정 (`common.py` 의 `get_transforms`)
+- **학습용 증강** 수정 — `common.py` 의 `get_transforms` 중 `train and augment` 분기만
+
+### 전처리 수정 시 반드시 지킬 것
+
+`get_transforms` 에는 두 갈래가 있습니다.
+
+| 갈래 | 언제 쓰이나 | 수정 |
+|---|---|---|
+| `train and augment` 분기 | 학습할 때만 | **수정 가능** |
+| 그 아래 기본 분기 | 검증·채점할 때 | **수정 금지** |
+
+채점은 운영진 환경의 기본 분기(Resize → ToTensor → ImageNet 정규화)로 실행됩니다.
+기본 분기를 바꾸면 여러분의 모델이 학습 때와 다른 조건으로 채점되어 점수가 부당하게 낮아집니다.
+이미지 크기를 바꾸고 싶다면 코드가 아니라 `--image-size` 옵션을 쓰세요.
 - 여러 체크포인트 중 하나를 최종으로 선택
 
 ## Colab 사용
