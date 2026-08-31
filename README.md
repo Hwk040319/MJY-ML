@@ -51,9 +51,27 @@ FILE_ID = "13DWY5tg_L4SYxujkdVQ89qEQZC08lr7L"   # 1회차 강의 실습용 (22MB
 | `common.py` | 시드 고정, 전처리, 평가 지표 계산 |
 | `check_data.py` | 학습 전 데이터·라벨·분할 누수 검사 |
 | `train_baseline.py` | ResNet18 학습, 최고 체크포인트 저장 |
+| `00_quickstart_colab.ipynb` | 위 파일들을 순서대로 실행하는 메인 실습 노트북 |
+| `02_cnn_theory_mnist.ipynb` | (선택) CNN 원리·학습 파라미터를 직접 실험해보는 이론 보충 노트북 |
 
 > `predict_test.py` 는 이 저장소에 없습니다. **비공개 Test 이미지는 배포하지 않으며**,
 > 채점은 운영진이 제출받은 체크포인트로 일괄 수행합니다. 아래 "최종 제출" 참고.
+
+---
+
+## (선택) CNN 원리를 직접 실습해보고 싶다면
+
+`train_baseline.py`는 이미 학습된 ResNet18을 **빌려 쓰는** 전이학습이라, CNN 내부가 실제로
+어떻게 학습되는지는 이 코드만으로 보기 어렵습니다. [02_cnn_theory_mnist.ipynb](02_cnn_theory_mnist.ipynb)
+는 MNIST 손글씨 숫자로 아주 작은 CNN을 처음부터 학습시키며 다음을 직접 확인하는 보충 실습입니다.
+
+- CNN 구조(Conv → Pool → Dense)가 텐서 모양을 어떻게 바꾸는지
+- epoch 수 / optimizer(sgd·adam·adamw) / activation(relu·leaky_relu·tanh·sigmoid) 을
+  바꾸면 학습 곡선과 최종 정확도가 어떻게 달라지는지
+- Confusion Matrix로 결과를 해석하는 법, 이미지 한 장을 직접 예측해보는 법
+
+채점·제출과는 무관하며, MNIST를 쓰는 이유는 다운로드가 즉시 끝나고 한 epoch이 몇 초 안에
+돌아 구조와 파라미터 자체에 집중할 수 있기 때문입니다.
 
 ---
 
@@ -71,9 +89,18 @@ python train_baseline.py --data-root data --use-class-weights --output-dir outpu
 
 # C. 전체 미세조정 (반드시 작은 learning rate 와 함께)
 python train_baseline.py --data-root data --unfreeze --lr 1e-4 --output-dir outputs/exp_ft
+
+# D. 옵티마이저 변경 (adamw(기본) / adam / sgd 중 선택)
+python train_baseline.py --data-root data --optimizer sgd --lr 1e-2 --output-dir outputs/exp_sgd
 ```
 
 전체 옵션은 `python train_baseline.py --help`
+
+> `--optimizer` 는 backbone을 고정한 채 head(Linear 하나)만 학습하는 기본 설정에서는
+> 효과가 크지 않을 수 있습니다. optimizer 차이를 뚜렷하게 보고 싶다면
+> `02_cnn_theory_mnist.ipynb` 에서 먼저 확인해보세요. 이 프로젝트에 `activation` 옵션이
+> 없는 이유도 같습니다 — ResNet18 head는 활성화 함수 없는 `nn.Linear` 하나뿐이라
+> 바꿀 대상이 없습니다.
 
 **`--output-dir` 을 매번 다르게 지정하세요.** 같은 경로를 쓰면 이전 결과가 덮어써집니다.
 
