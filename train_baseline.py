@@ -10,6 +10,7 @@
     python train_baseline.py --data-root data --augment           --output-dir outputs/exp_aug
     python train_baseline.py --data-root data --use-class-weights --output-dir outputs/exp_weight
     python train_baseline.py --data-root data --unfreeze --lr 1e-4 --output-dir outputs/exp_ft
+    python train_baseline.py --data-root data --optimizer sgd      --output-dir outputs/exp_sgd
 """
 
 import argparse
@@ -44,6 +45,8 @@ def parse_args():
                     help="적은 클래스의 오답에 더 큰 손실을 부여")
     ap.add_argument("--unfreeze", action="store_true",
                     help="backbone 까지 전체 미세조정 (--lr 1e-4 정도를 함께 쓰세요)")
+    ap.add_argument("--optimizer", choices=["adamw", "adam", "sgd"], default="adamw",
+                    help="가중치를 어떤 규칙으로 업데이트할지 선택 (기본 adamw)")
     return ap.parse_args()
 
 
@@ -59,6 +62,21 @@ def build_model(unfreeze: bool, device):
     # fc 를 새로 만들면 requires_grad=True 인 새 파라미터가 됩니다.
     model.fc = nn.Linear(model.fc.in_features, NUM_CLASSES)
     return model.to(device)
+
+
+def build_optimizer(name: str, params, lr: float):
+    """--optimizer 옵션에 따라 옵티마이저를 만듭니다.
+
+    이 프로젝트는 backbone을 고정한 채 head(Linear 하나)만 학습하는 경우가 기본이라
+    옵티마이저 차이가 CNN을 처음부터 학습할 때만큼 극적이지는 않습니다. 그래도 수렴
+    속도와 최종 점수가 조금씩 달라지므로 개선 실험의 한 축으로 다뤄볼 수 있습니다.
+    """
+    if name == "sgd":
+        # SGD는 관성(momentum)을 줘야 Adam 계열과 비슷한 속도로 수렴합니다.
+        return torch.optim.SGD(params, lr=lr, momentum=0.9)
+    if name == "adam":
+        return torch.optim.Adam(params, lr=lr)
+    return torch.optim.AdamW(params, lr=lr)  # 기본값: weight decay가 분리된 Adam
 
 
 def freeze_bn(module):
@@ -81,6 +99,10 @@ def main():
 
     if args.unfreeze and args.lr > 5e-4:
         print(f"[주의] --unfreeze 에 lr={args.lr} 는 큽니다. 1e-4 정도를 권장합니다.")
+
+    if args.optimizer == "sgd" and args.lr <= 5e-4:
+        print(f"[주의] --optimizer sgd 에 lr={args.lr} 는 작습니다. "
+              f"SGD는 보통 adam 계열보다 큰 lr(예: 1e-2)이 필요합니다.")
 
     # ---------- 데이터 ----------
     train_set = BatteryDataset(
@@ -114,12 +136,13 @@ def main():
         criterion = nn.CrossEntropyLoss()
 
     trainable = [p for p in model.parameters() if p.requires_grad]
-    optimizer = torch.optim.AdamW(trainable, lr=args.lr)
+    optimizer = build_optimizer(args.optimizer, trainable, args.lr)
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
 
     n_train = sum(p.numel() for p in trainable)
     print(f"학습 대상 파라미터 {n_train:,}개 "
-          f"({'전체 미세조정' if args.unfreeze else 'head 만 학습'})\n")
+          f"({'전체 미세조정' if args.unfreeze else 'head 만 학습'})  "
+          f"optimizer={args.optimizer}\n")
 
     # ---------- 학습 루프 ----------
     history_path = out_dir / "history.csv"
