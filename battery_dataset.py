@@ -69,7 +69,7 @@ class BatteryDataset(Dataset):
             image = self.transform(image)
 
         # (3) 모델 입력, 정답, 파일명을 함께 돌려줍니다.
-        #     파일명은 submission.csv 를 만들 때 필요합니다.
+        #     파일명은 예측 결과를 확인할 때 어떤 이미지인지 표시하는 데 씁니다.
         return image, self.targets[idx], name
 
     def class_counts(self, num_classes=3):

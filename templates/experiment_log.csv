@@ -1,3 +1,3 @@
-exp_id,date,team,hypothesis,changed_option,command,epochs,lr,batch_size,augment,class_weights,unfreeze,val_macro_f1,val_accuracy,f1_early,f1_mid,f1_late,conclusion
-baseline,2026-09-01,예시팀,기준점 확보,없음,python train_baseline.py --data-root data --output-dir outputs/baseline,3,0.001,32,N,N,N,0.0000,0.0000,0.0000,0.0000,0.0000,모든 실험의 비교 기준
-exp01,2026-09-02,예시팀,증강이 후기 클래스 일반화를 돕는다,--augment,python train_baseline.py --data-root data --augment --output-dir outputs/exp01,5,0.001,32,Y,N,N,0.0000,0.0000,0.0000,0.0000,0.0000,여기에 결과 해석 한 문장
+exp_id,date,team,hypothesis,changed_option,command,epochs,lr,optimizer,weight_decay,batch_size,augment,class_weights,unfreeze,val_macro_f1,val_accuracy,f1_early,f1_mid,f1_late,conclusion
+baseline,2026-09-01,예시팀,기준점 확보,없음,python train_baseline.py --data-root data --output-dir outputs/baseline,5,0.001,adamw,0.0,32,N,N,N,0.0000,0.0000,0.0000,0.0000,0.0000,모든 실험의 비교 기준
+exp01,2026-09-02,예시팀,증강이 후기 클래스 일반화를 돕는다,--augment,python train_baseline.py --data-root data --augment --epochs 5 --output-dir outputs/exp01,5,0.001,adamw,0.0,32,Y,N,N,0.0000,0.0000,0.0000,0.0000,0.0000,여기에 결과 해석 한 문장

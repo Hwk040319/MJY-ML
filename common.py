@@ -1,7 +1,7 @@
 """공통 유틸리티: 시드 고정, 이미지 전처리, 평가 지표.
 
 이 파일은 참가자가 직접 수정할 필요가 없습니다.
-train_baseline.py 와 predict_test.py 가 이 파일의 함수를 가져다 씁니다.
+train_baseline.py 와 predict_one.py 가 이 파일의 함수를 가져다 씁니다.
 """
 
 import json
@@ -33,6 +33,17 @@ def set_seed(seed: int = 42) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+    # GPU 연산에서도 가능한 범위까지 실행 결과를 일정하게 맞춥니다.
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+
+def seed_worker(worker_id: int) -> None:
+    """DataLoader worker마다 Python/NumPy 난수를 같은 규칙으로 초기화합니다."""
+    worker_seed = torch.initial_seed() % (2**32)
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 
 def get_transforms(image_size: int = 224, train: bool = False, augment: bool = False):

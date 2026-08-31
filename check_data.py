@@ -32,7 +32,12 @@ def check_split(data_root: Path, split: str, has_labels: bool):
         return [f"[{split}] 이미지 폴더 없음: {image_dir}"], None
 
     files = {p.name for p in image_dir.glob("*.png")}  # 실제로 존재하는 이미지 파일명 집합
-    info = {"split": split, "n_images": len(files), "experiment_ids": set()}
+    info = {
+        "split": split,
+        "n_images": len(files),
+        "image_names": files,
+        "experiment_ids": set(),
+    }
 
     if not has_labels:
         print(f"[{split}] 이미지 {len(files)}장 (정답 비공개)")
@@ -50,7 +55,16 @@ def check_split(data_root: Path, split: str, has_labels: bool):
     if problems:
         return problems, info
 
-    listed = set(df["image_name"])
+    if df.empty:
+        problems.append(f"[{split}] labels.csv 에 라벨 행이 없습니다")
+        return problems, info
+
+    if df["image_name"].isna().any():
+        problems.append(f"[{split}] image_name 에 빈 값이 있습니다")
+    if df["experiment_id"].isna().any() or df["experiment_id"].astype(str).str.strip().eq("").any():
+        problems.append(f"[{split}] experiment_id 에 빈 값이 있습니다")
+
+    listed = set(df["image_name"].dropna().astype(str))
     missing = listed - files  # labels.csv 에는 있는데 실제 이미지 파일이 없는 경우
     if missing:
         problems.append(
@@ -69,7 +83,9 @@ def check_split(data_root: Path, split: str, has_labels: bool):
     if dup:
         problems.append(f"[{split}] labels.csv 에 중복된 image_name {dup}건")
 
-    bad = set(df["target"].unique()) - VALID_TARGETS  # 0/1/2 이외의 값이 섞여있는 경우
+    if df["target"].isna().any():
+        problems.append(f"[{split}] target 에 빈 값이 있습니다")
+    bad = set(df["target"].dropna().unique()) - VALID_TARGETS  # 0/1/2 이외의 값이 섞여있는 경우
     if bad:
         problems.append(f"[{split}] target 에 허용되지 않은 값: {sorted(bad)}")
 
@@ -77,7 +93,9 @@ def check_split(data_root: Path, split: str, has_labels: bool):
     info["n_rows"] = len(df)
     info["class_counts"] = {int(k): int(counts.get(k, 0)) for k in sorted(VALID_TARGETS)}
     if "experiment_id" in df.columns:
-        info["experiment_ids"] = set(df["experiment_id"].unique())
+        info["experiment_ids"] = {
+            str(value).strip() for value in df["experiment_id"].dropna().unique()
+        }
 
     total = len(df)
     dist = "  ".join(
@@ -92,14 +110,15 @@ def check_split(data_root: Path, split: str, has_labels: bool):
 
 
 def check_leakage(infos):
-    """분할 사이에 같은 experiment_id 가 섞였는지 확인합니다.
+    """분할 사이에 같은 experiment_id 또는 image_name이 섞였는지 확인합니다.
 
     같은 실험의 연속 프레임은 파일명이 달라도 장면이 거의 같습니다.
     이 프레임들이 train 과 public_val 에 나뉘어 들어가면 모델은
     '새로운 실험을 이해한 것'이 아니라 '본 장면을 기억한 것'이 됩니다.
     """
     problems = []
-    named = {i["split"]: i["experiment_ids"] for i in infos if i and i["experiment_ids"]}
+    named = {i["split"]: i["experiment_ids"] for i in infos if i is not None}
+    image_named = {i["split"]: i["image_names"] for i in infos if i is not None}
     keys = sorted(named)
     for a_idx in range(len(keys)):
         for b_idx in range(a_idx + 1, len(keys)):
@@ -110,21 +129,26 @@ def check_leakage(infos):
                     f"[누수] {a} 와 {b} 가 experiment_id {len(overlap)}개를 공유합니다 "
                     f"(예: {sorted(overlap)[:3]})"
                 )
+
+    image_keys = sorted(image_named)
+    for a_idx in range(len(image_keys)):
+        for b_idx in range(a_idx + 1, len(image_keys)):
+            a, b = image_keys[a_idx], image_keys[b_idx]
+            overlap = image_named[a] & image_named[b]
+            if overlap:
+                problems.append(
+                    f"[누수] {a} 와 {b} 가 image_name {len(overlap)}개를 공유합니다 "
+                    f"(예: {sorted(overlap)[:3]})"
+                )
     return problems
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data-root", default="data")
-    args = ap.parse_args()
-
-    data_root = Path(args.data_root)
+def validate_data_root(data_root: Path):
+    """학습 전에 실행할 수 있는 데이터 검사를 수행하고 문제 목록을 돌려줍니다."""
     if not data_root.is_dir():
-        print(f"데이터 폴더가 없습니다: {data_root.resolve()}")
-        sys.exit(1)
+        return [f"데이터 폴더가 없습니다: {data_root.resolve()}"]
 
     print(f"데이터 검사 시작: {data_root.resolve()}\n" + "-" * 60)
-
     problems, infos = [], []
     for split in SPLITS_WITH_LABELS:
         p, info = check_split(data_root, split, has_labels=True)
@@ -139,8 +163,17 @@ def main():
         infos.append(info)
 
     problems += check_leakage([i for i in infos if i])
-
     print("-" * 60)
+    return problems
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--data-root", default="data")
+    args = ap.parse_args()
+
+    data_root = Path(args.data_root)
+    problems = validate_data_root(data_root)
     if problems:
         print(f"문제 {len(problems)}건이 발견되었습니다. 학습 전에 해결하세요.\n")
         for msg in problems:

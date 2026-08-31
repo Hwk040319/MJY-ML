@@ -15,6 +15,7 @@
 
 import argparse
 import csv
+import subprocess
 import time
 from pathlib import Path
 
@@ -26,7 +27,9 @@ from torchvision import models
 
 from battery_dataset import BatteryDataset
 from common import (CLASS_NAMES, NUM_CLASSES, evaluate, format_confusion_matrix,
-                    get_transforms, resolve_device, save_json, set_seed)
+                    get_transforms, resolve_device, save_json, seed_worker,
+                    set_seed)
+from check_data import validate_data_root
 
 
 def parse_args():
@@ -36,6 +39,8 @@ def parse_args():
     ap.add_argument("--epochs", type=int, default=5)
     ap.add_argument("--batch-size", type=int, default=32)
     ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--weight-decay", type=float, default=0.0,
+                    help="옵티마이저의 L2 정규화 강도 (옵티마이저 비교 시 기본 0으로 동일)")
     ap.add_argument("--image-size", type=int, default=224)
     ap.add_argument("--seed", type=int, default=42,
                     help="공정한 비교를 위해 42 고정을 권장합니다")
@@ -51,9 +56,10 @@ def parse_args():
     return ap.parse_args()
 
 
-def build_model(unfreeze: bool, device):
+def build_model(unfreeze: bool, device, pretrained: bool = True):
     """ImageNet 사전학습 ResNet18 을 불러와 마지막 분류층만 3-class 로 교체합니다."""
-    model = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+    weights = models.ResNet18_Weights.IMAGENET1K_V1 if pretrained else None
+    model = models.resnet18(weights=weights)
 
     if not unfreeze:
         # backbone 고정: 사전학습된 특징 추출기를 그대로 쓰고 새 head 만 학습합니다.
@@ -65,7 +71,7 @@ def build_model(unfreeze: bool, device):
     return model.to(device)
 
 
-def build_optimizer(name: str, params, lr: float):
+def build_optimizer(name: str, params, lr: float, weight_decay: float = 0.0):
     """--optimizer 옵션에 따라 옵티마이저를 만듭니다.
 
     이 프로젝트는 backbone을 고정한 채 head(Linear 하나)만 학습하는 경우가 기본이라
@@ -74,10 +80,10 @@ def build_optimizer(name: str, params, lr: float):
     """
     if name == "sgd":
         # SGD는 관성(momentum)을 줘야 Adam 계열과 비슷한 속도로 수렴합니다.
-        return torch.optim.SGD(params, lr=lr, momentum=0.9)
+        return torch.optim.SGD(params, lr=lr, momentum=0.9, weight_decay=weight_decay)
     if name == "adam":
-        return torch.optim.Adam(params, lr=lr)
-    return torch.optim.AdamW(params, lr=lr)  # 기본값: weight decay가 분리된 Adam
+        return torch.optim.Adam(params, lr=lr, weight_decay=weight_decay)
+    return torch.optim.AdamW(params, lr=lr, weight_decay=weight_decay)
 
 
 def freeze_bn(module):
@@ -142,6 +148,17 @@ def save_confusion_matrix_figure(cm: list[list[int]], output_path: Path) -> None
     plt.close(fig)
 
 
+def current_git_commit() -> str | None:
+    """가능하면 결과 폴더에 실행한 코드 커밋을 함께 기록합니다."""
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
 def main():
     args = parse_args()
     set_seed(args.seed)
@@ -157,6 +174,13 @@ def main():
               f"SGD는 보통 adam 계열보다 큰 lr(예: 1e-2)이 필요합니다.")
 
     # ---------- 데이터 ----------
+    problems = validate_data_root(Path(args.data_root))
+    if problems:
+        raise RuntimeError(
+            "데이터 검사를 통과하지 못했습니다. 먼저 check_data.py 결과를 해결하세요.\n"
+            + "\n".join(f"- {msg}" for msg in problems)
+        )
+
     train_set = BatteryDataset(
         args.data_root, "train",
         transform=get_transforms(args.image_size, train=True, augment=args.augment))
@@ -164,10 +188,15 @@ def main():
         args.data_root, "public_val",
         transform=get_transforms(args.image_size, train=False))
 
-    train_loader = DataLoader(train_set, batch_size=args.batch_size, shuffle=True,
-                              num_workers=args.num_workers, pin_memory=True, drop_last=False)
+    loader_generator = torch.Generator().manual_seed(args.seed)
+    train_loader = DataLoader(
+        train_set, batch_size=args.batch_size, shuffle=True,
+        num_workers=args.num_workers, pin_memory=True, drop_last=False,
+        generator=loader_generator, worker_init_fn=seed_worker,
+    )
     val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False,
-                            num_workers=args.num_workers, pin_memory=True)
+                            num_workers=args.num_workers, pin_memory=True,
+                            worker_init_fn=seed_worker)
 
     counts = train_set.class_counts()
     print(f"Training {len(train_set)}장  {dict(zip(CLASS_NAMES, counts))}")
@@ -188,7 +217,7 @@ def main():
         criterion = nn.CrossEntropyLoss()
 
     trainable = [p for p in model.parameters() if p.requires_grad]
-    optimizer = build_optimizer(args.optimizer, trainable, args.lr)
+    optimizer = build_optimizer(args.optimizer, trainable, args.lr, args.weight_decay)
     scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
 
     n_train = sum(p.numel() for p in trainable)
@@ -263,7 +292,14 @@ def main():
 
     # ---------- 결과 정리 ----------
     save_json(best_report, out_dir / "validation_report.json")
-    save_json(vars(args), out_dir / "run_config.json")
+    run_config = {
+        **vars(args),
+        "device": str(device),
+        "torch_version": torch.__version__,
+        "torchvision_version": getattr(__import__("torchvision"), "__version__", "unknown"),
+        "git_commit": current_git_commit(),
+    }
+    save_json(run_config, out_dir / "run_config.json")
     save_learning_curves(history, out_dir / "learning_curves.png")
     save_confusion_matrix_figure(
         best_report["confusion_matrix"], out_dir / "confusion_matrix.png")
