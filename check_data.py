@@ -92,6 +92,11 @@ def check_split(data_root: Path, split: str, has_labels: bool):
     counts = Counter(df["target"])
     info["n_rows"] = len(df)
     info["class_counts"] = {int(k): int(counts.get(k, 0)) for k in sorted(VALID_TARGETS)}
+    missing_classes = [k for k, count in info["class_counts"].items() if count == 0]
+    if missing_classes:
+        problems.append(
+            f"[{split}] 이미지가 한 장도 없는 target 클래스: {missing_classes}"
+        )
     if "experiment_id" in df.columns:
         info["experiment_ids"] = {
             str(value).strip() for value in df["experiment_id"].dropna().unique()
@@ -157,7 +162,7 @@ def validate_data_root(data_root: Path):
 
     p, info = check_split(data_root, SPLIT_TEST, has_labels=False)
     if info is None:
-        print(f"[{SPLIT_TEST}] 폴더 없음 (정상 — 참가자에게 배포되지 않는 분할입니다)")
+        print(f"[{SPLIT_TEST}] 폴더 없음 (정상 - 참가자에게 배포되지 않는 분할입니다)")
     else:
         problems += p
         infos.append(info)

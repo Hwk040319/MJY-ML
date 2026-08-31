@@ -91,7 +91,10 @@ python train_baseline.py --data-root data --augment --epochs 5 --output-dir outp
 # B. 클래스 가중치 (적은 클래스의 오답에 큰 손실)
 python train_baseline.py --data-root data --use-class-weights --epochs 5 --output-dir outputs/exp_weight
 
-# C. 전체 미세조정 (반드시 작은 learning rate 와 함께)
+# C1. 미세조정 대조군: backbone은 고정하고 learning rate만 낮춤
+python train_baseline.py --data-root data --lr 1e-4 --epochs 5 --output-dir outputs/exp_lr_control
+
+# C2. 전체 미세조정: C1과 같은 learning rate에서 unfreeze만 추가
 python train_baseline.py --data-root data --unfreeze --lr 1e-4 --epochs 5 --output-dir outputs/exp_ft
 
 # D. 옵티마이저 변경 (같은 lr·epoch에서 optimizer만 변경)
@@ -106,6 +109,8 @@ python train_baseline.py --data-root data --optimizer sgd --epochs 5 --output-di
 > 없는 이유도 같습니다 — ResNet18 head는 활성화 함수 없는 `nn.Linear` 하나뿐이라
 > 바꿀 대상이 없습니다. 정규화 강도를 바꾸고 싶다면 `--weight-decay`를 별도 실험으로
 > 기록하세요. optimizer 비교의 기본값은 세 optimizer 모두 `weight_decay=0`으로 같습니다.
+> 같은 `lr=1e-3`에서의 비교이므로 optimizer별 최고 성능 순위가 아니라 공통 조건의
+> 수렴 차이를 보는 실험입니다. 미세조정은 C1과 C2를 비교해야 `unfreeze` 효과만 해석할 수 있습니다.
 
 ### 이미지 한 장 예측
 
@@ -125,7 +130,8 @@ python predict_one.py \
 실험은 `templates/experiment_log.csv` 를 복사해 한 줄씩 기록합니다.
 실패한 실험도 지우지 마세요. 발표에서 근거가 됩니다.
 
-> Drive의 `grouped_results` 폴더는 누수 없는 Grouped baseline을 실행했던 **보관 기록**입니다.
+> 운영진 Drive의 `ARCHIVE_grouped_results_2026-08-07` 폴더는 누수 없는 Grouped baseline을
+> 실행했던 **비공개 보관 기록**입니다. 학생 배포 자료가 아닙니다.
 > 당시 실행물과 현재 코드의 `history.csv` 열 구성·저장 파일이 다를 수 있으므로,
 > 새 실험의 재현 근거는 항상 현재 코드가 생성한 `run_config.json`과 결과 파일을 사용하세요.
 
@@ -140,7 +146,7 @@ python predict_one.py \
 | `best_model.pt` | Public Validation Macro F1 최고 시점의 가중치 |
 | `history.csv` | epoch별 train loss, val loss, val accuracy, val macro F1 |
 | `validation_report.json` | 최고 시점의 점수, Class F1, 혼동행렬 |
-| `run_config.json` | 실행 옵션·장치·라이브러리·커밋 (재현성 근거) |
+| `run_config.json` | 실행 옵션·장치·라이브러리·커밋·로컬 수정 diff·소스 해시 (재현성 근거) |
 | `learning_curves.png` | epoch별 loss와 validation 점수 변화 그래프 |
 | `confusion_matrix.png` | 최고 checkpoint의 Public Validation 혼동행렬 |
 

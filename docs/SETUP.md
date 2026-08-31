@@ -30,6 +30,9 @@ print(torch.cuda.is_available())
 
 데이터는 Google Drive로 배포됩니다. 링크는 운영진 공지를 확인하세요.
 
+> 운영진은 Drive **폴더 링크가 아니라 아래 두 tar 파일의 직접 링크/FILE_ID만** 배포합니다.
+> 운영 노트북, 과거 결과, `private_test` 관련 자료는 운영진 전용 폴더에 보관합니다.
+
 | 파일 | 내용 | 용량 |
 |---|---|---|
 | `battery_lecture_sample.tar` | 1회차 강의 실습용 (약 700장) | 약 22MB · FILE_ID `13DWY5tg_L4SYxujkdVQ89qEQZC08lr7L` |

@@ -9,12 +9,14 @@
 개선 실험 예시:
     python train_baseline.py --data-root data --augment           --output-dir outputs/exp_aug
     python train_baseline.py --data-root data --use-class-weights --output-dir outputs/exp_weight
+    python train_baseline.py --data-root data --lr 1e-4            --output-dir outputs/exp_lr_control
     python train_baseline.py --data-root data --unfreeze --lr 1e-4 --output-dir outputs/exp_ft
     python train_baseline.py --data-root data --optimizer sgd      --output-dir outputs/exp_sgd
 """
 
 import argparse
 import csv
+import hashlib
 import subprocess
 import time
 from pathlib import Path
@@ -148,15 +150,38 @@ def save_confusion_matrix_figure(cm: list[list[int]], output_path: Path) -> None
     plt.close(fig)
 
 
-def current_git_commit() -> str | None:
-    """가능하면 결과 폴더에 실행한 코드 커밋을 함께 기록합니다."""
+def current_code_state() -> dict:
+    """커밋과 로컬 수정 내용을 함께 기록해 실행 코드를 재현할 수 있게 합니다."""
+    repo_dir = Path(__file__).resolve().parent
+    state = {
+        "git_commit": None,
+        "git_dirty": None,
+        "git_status": None,
+        "git_diff": None,
+        "source_sha256": {},
+    }
     try:
-        return subprocess.run(
+        state["git_commit"] = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            check=True, capture_output=True, text=True,
+            cwd=repo_dir, check=True, capture_output=True, text=True,
         ).stdout.strip()
+        state["git_status"] = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=repo_dir, check=True, capture_output=True, text=True,
+        ).stdout
+        state["git_diff"] = subprocess.run(
+            ["git", "diff", "--no-ext-diff", "HEAD"],
+            cwd=repo_dir, check=True, capture_output=True, text=True,
+        ).stdout
+        state["git_dirty"] = bool(state["git_status"].strip())
     except (OSError, subprocess.CalledProcessError):
-        return None
+        pass
+
+    for name in ["train_baseline.py", "common.py", "battery_dataset.py", "check_data.py"]:
+        path = repo_dir / name
+        if path.is_file():
+            state["source_sha256"][name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return state
 
 
 def main():
@@ -189,13 +214,14 @@ def main():
         transform=get_transforms(args.image_size, train=False))
 
     loader_generator = torch.Generator().manual_seed(args.seed)
+    use_pin_memory = device.type == "cuda"
     train_loader = DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.num_workers, pin_memory=True, drop_last=False,
+        num_workers=args.num_workers, pin_memory=use_pin_memory, drop_last=False,
         generator=loader_generator, worker_init_fn=seed_worker,
     )
     val_loader = DataLoader(val_set, batch_size=args.batch_size, shuffle=False,
-                            num_workers=args.num_workers, pin_memory=True,
+                            num_workers=args.num_workers, pin_memory=use_pin_memory,
                             worker_init_fn=seed_worker)
 
     counts = train_set.class_counts()
@@ -218,7 +244,10 @@ def main():
 
     trainable = [p for p in model.parameters() if p.requires_grad]
     optimizer = build_optimizer(args.optimizer, trainable, args.lr, args.weight_decay)
-    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
+    try:
+        scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda"))
+    except (AttributeError, TypeError):  # PyTorch 2.1 호환
+        scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
 
     n_train = sum(p.numel() for p in trainable)
     print(f"학습 대상 파라미터 {n_train:,}개 "
@@ -292,12 +321,13 @@ def main():
 
     # ---------- 결과 정리 ----------
     save_json(best_report, out_dir / "validation_report.json")
+    code_state = current_code_state()
     run_config = {
         **vars(args),
         "device": str(device),
         "torch_version": torch.__version__,
         "torchvision_version": getattr(__import__("torchvision"), "__version__", "unknown"),
-        "git_commit": current_git_commit(),
+        **code_state,
     }
     save_json(run_config, out_dir / "run_config.json")
     save_learning_curves(history, out_dir / "learning_curves.png")

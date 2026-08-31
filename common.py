@@ -107,7 +107,10 @@ def evaluate(model, loader, device, criterion=None) -> dict:
     return {
         "loss": total_loss / total_n if criterion is not None else None,
         "accuracy": float(accuracy_score(targets, preds)),
-        "macro_f1": float(f1_score(targets, preds, average="macro", zero_division=0)),
+        "macro_f1": float(f1_score(
+            targets, preds, average="macro", labels=list(range(NUM_CLASSES)),
+            zero_division=0,
+        )),
         "class_f1": [
             float(v) for v in f1_score(targets, preds, average=None,
                                        labels=list(range(NUM_CLASSES)), zero_division=0)
