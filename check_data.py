@@ -31,7 +31,7 @@ def check_split(data_root: Path, split: str, has_labels: bool):
     if not image_dir.is_dir():
         return [f"[{split}] 이미지 폴더 없음: {image_dir}"], None
 
-    files = {p.name for p in image_dir.glob("*.png")}
+    files = {p.name for p in image_dir.glob("*.png")}  # 실제로 존재하는 이미지 파일명 집합
     info = {"split": split, "n_images": len(files), "experiment_ids": set()}
 
     if not has_labels:
@@ -44,32 +44,32 @@ def check_split(data_root: Path, split: str, has_labels: bool):
 
     df = pd.read_csv(label_path)
 
-    for col in ["image_name", "target", "experiment_id"]:
+    for col in ["image_name", "target", "experiment_id"]:  # 필수 열이 하나라도 빠지면 이후 검사 불가
         if col not in df.columns:
             problems.append(f"[{split}] labels.csv 에 '{col}' 열이 없습니다")
     if problems:
         return problems, info
 
     listed = set(df["image_name"])
-    missing = listed - files
+    missing = listed - files  # labels.csv 에는 있는데 실제 이미지 파일이 없는 경우
     if missing:
         problems.append(
             f"[{split}] labels.csv 에 있으나 파일이 없는 이미지 {len(missing)}장 "
             f"(예: {sorted(missing)[:3]})"
         )
 
-    orphan = files - listed
+    orphan = files - listed  # 이미지 파일은 있는데 labels.csv 에 등록되지 않은 경우
     if orphan:
         problems.append(
             f"[{split}] 파일은 있으나 labels.csv 에 없는 이미지 {len(orphan)}장 "
             f"(예: {sorted(orphan)[:3]})"
         )
 
-    dup = df["image_name"].duplicated().sum()
+    dup = df["image_name"].duplicated().sum()  # 같은 파일명이 두 번 이상 등록된 경우
     if dup:
         problems.append(f"[{split}] labels.csv 에 중복된 image_name {dup}건")
 
-    bad = set(df["target"].unique()) - VALID_TARGETS
+    bad = set(df["target"].unique()) - VALID_TARGETS  # 0/1/2 이외의 값이 섞여있는 경우
     if bad:
         problems.append(f"[{split}] target 에 허용되지 않은 값: {sorted(bad)}")
 
@@ -104,7 +104,7 @@ def check_leakage(infos):
     for a_idx in range(len(keys)):
         for b_idx in range(a_idx + 1, len(keys)):
             a, b = keys[a_idx], keys[b_idx]
-            overlap = named[a] & named[b]
+            overlap = named[a] & named[b]  # 두 분할이 공유하는 experiment_id
             if overlap:
                 problems.append(
                     f"[누수] {a} 와 {b} 가 experiment_id {len(overlap)}개를 공유합니다 "
