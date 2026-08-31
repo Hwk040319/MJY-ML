@@ -111,14 +111,16 @@ python train_baseline.py --data-root data --optimizer sgd --lr 1e-2 --output-dir
 
 ## 학습 결과 파일
 
-`--output-dir` 안에 네 개가 생깁니다.
+`--output-dir` 안에 다음 여섯 개가 생깁니다.
 
 | 파일 | 내용 |
 |---|---|
 | `best_model.pt` | Public Validation Macro F1 최고 시점의 가중치 |
-| `history.csv` | epoch별 train/val loss, accuracy, macro F1 |
+| `history.csv` | epoch별 train loss, val loss, val accuracy, val macro F1 |
 | `validation_report.json` | 최고 시점의 점수, Class F1, 혼동행렬 |
 | `run_config.json` | 실행 옵션 전체 (재현성 근거) |
+| `learning_curves.png` | epoch별 loss와 validation 점수 변화 그래프 |
+| `confusion_matrix.png` | 최고 checkpoint의 Public Validation 혼동행렬 |
 
 `history.csv` 에서 train loss는 계속 내려가는데 val macro F1이 떨어지면 과적합입니다.
 

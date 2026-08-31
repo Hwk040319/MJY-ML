@@ -18,6 +18,7 @@ import csv
 import time
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
@@ -90,6 +91,57 @@ def freeze_bn(module):
         module.eval()
 
 
+def save_learning_curves(history: list[dict], output_path: Path) -> None:
+    """epoch별 학습/검증 변화를 한눈에 볼 수 있는 그래프를 저장합니다."""
+    epochs = [row["epoch"] for row in history]
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    axes[0].plot(epochs, [row["train_loss"] for row in history], marker="o", label="train loss")
+    axes[0].plot(epochs, [row["val_loss"] for row in history], marker="o", label="validation loss")
+    axes[0].set_title("Loss by epoch")
+    axes[0].set_xlabel("epoch")
+    axes[0].set_ylabel("loss")
+    axes[0].legend()
+    axes[0].grid(alpha=0.25)
+
+    axes[1].plot(epochs, [row["val_accuracy"] for row in history], marker="o", label="validation accuracy")
+    axes[1].plot(epochs, [row["val_macro_f1"] for row in history], marker="o", label="validation macro F1")
+    axes[1].set_title("Validation metrics by epoch")
+    axes[1].set_xlabel("epoch")
+    axes[1].set_ylabel("score")
+    axes[1].set_ylim(0.0, 1.0)
+    axes[1].legend()
+    axes[1].grid(alpha=0.25)
+
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_confusion_matrix_figure(cm: list[list[int]], output_path: Path) -> None:
+    """행=실제, 열=예측인 혼동행렬을 이미지로 저장합니다."""
+    fig, ax = plt.subplots(figsize=(5.8, 5.0))
+    image = ax.imshow(cm, cmap="Blues")
+    # Colab 기본 폰트에서도 깨지지 않도록 그래프 축은 영문으로 표시합니다.
+    plot_labels = ["0 (early)", "1 (middle)", "2 (late)"]
+    ax.set_xticks(range(NUM_CLASSES), plot_labels)
+    ax.set_yticks(range(NUM_CLASSES), plot_labels)
+    ax.set_xlabel("Predicted class")
+    ax.set_ylabel("True class")
+    ax.set_title("Public validation confusion matrix")
+
+    threshold = max(max(row) for row in cm) / 2
+    for true_idx, row in enumerate(cm):
+        for pred_idx, value in enumerate(row):
+            ax.text(pred_idx, true_idx, value, ha="center", va="center",
+                    color="white" if value > threshold else "black")
+
+    fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+
+
 def main():
     args = parse_args()
     set_seed(args.seed)
@@ -151,6 +203,7 @@ def main():
             ["epoch", "train_loss", "val_loss", "val_accuracy", "val_macro_f1"])
 
     best_f1, best_report = -1.0, None
+    history = []
 
     for epoch in range(1, args.epochs + 1):
         model.train()
@@ -188,6 +241,15 @@ def main():
                                     round(report["accuracy"], 6),
                                     round(report["macro_f1"], 6)])
 
+        # CSV와 그래프가 정확히 같은 값을 사용하도록 한 곳에 함께 기록합니다.
+        history.append({
+            "epoch": epoch,
+            "train_loss": train_loss,
+            "val_loss": report["loss"],
+            "val_accuracy": report["accuracy"],
+            "val_macro_f1": report["macro_f1"],
+        })
+
         # 최고 Macro F1 시점만 저장합니다. 마지막 epoch 가 최고라는 보장은 없습니다.
         if report["macro_f1"] > best_f1:
             best_f1 = report["macro_f1"]
@@ -202,6 +264,9 @@ def main():
     # ---------- 결과 정리 ----------
     save_json(best_report, out_dir / "validation_report.json")
     save_json(vars(args), out_dir / "run_config.json")
+    save_learning_curves(history, out_dir / "learning_curves.png")
+    save_confusion_matrix_figure(
+        best_report["confusion_matrix"], out_dir / "confusion_matrix.png")
 
     print("\n" + "=" * 60)
     print(f"최고 Public Validation Macro F1: {best_f1:.4f} (epoch {best_report['best_epoch']})")
@@ -211,6 +276,7 @@ def main():
     print(format_confusion_matrix(best_report["confusion_matrix"]))
     print("=" * 60)
     print(f"저장 위치: {out_dir.resolve()}")
+    print("그래프: learning_curves.png, confusion_matrix.png")
 
 
 if __name__ == "__main__":
