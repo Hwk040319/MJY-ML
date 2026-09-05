@@ -88,6 +88,12 @@ Baseline 대비 **한 번에 하나의 옵션만** 바꿉니다. 두 개를 동�
 # A. 데이터 증강
 python train_baseline.py --data-root data --augment --epochs 5 --output-dir outputs/exp_aug
 
+# A-1. 데이터 증강 강도 직접 조절
+python train_baseline.py --data-root data --augment \
+  --crop-scale-min 0.75 --flip-prob 0.5 --rotation-degrees 15 \
+  --brightness 0.3 --contrast 0.3 --epochs 5 \
+  --output-dir outputs/exp_aug_custom
+
 # B. 클래스 가중치 (적은 클래스의 오답에 큰 손실)
 python train_baseline.py --data-root data --use-class-weights --epochs 5 --output-dir outputs/exp_weight
 

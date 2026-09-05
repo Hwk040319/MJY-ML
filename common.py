@@ -46,10 +46,20 @@ def seed_worker(worker_id: int) -> None:
     random.seed(worker_seed)
 
 
-def get_transforms(image_size: int = 224, train: bool = False, augment: bool = False):
+def get_transforms(
+    image_size: int = 224,
+    train: bool = False,
+    augment: bool = False,
+    crop_scale_min: float = 0.85,
+    flip_prob: float = 0.5,
+    rotation_degrees: float = 10.0,
+    brightness: float = 0.2,
+    contrast: float = 0.2,
+):
     """이미지를 모델 입력 텐서로 바꾸는 전처리 파이프라인을 만듭니다.
 
-    augment=True 일 때만 학습용 증강이 추가됩니다.
+    augment=True 일 때만 학습용 증강이 추가됩니다. 증강 강도는
+    train_baseline.py의 CLI 옵션으로 조절할 수 있습니다.
     검증/테스트에는 절대 증강을 넣지 않습니다. 평가 조건이 달라지기 때문입니다.
 
     [수정 규칙]
@@ -65,10 +75,10 @@ def get_transforms(image_size: int = 224, train: bool = False, augment: bool = F
     if train and augment:
         return transforms.Compose([
             transforms.Resize((image_size, image_size)),
-            transforms.RandomResizedCrop(image_size, scale=(0.85, 1.0)),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(degrees=10),
-            transforms.ColorJitter(brightness=0.2, contrast=0.2),
+            transforms.RandomResizedCrop(image_size, scale=(crop_scale_min, 1.0)),
+            transforms.RandomHorizontalFlip(p=flip_prob),
+            transforms.RandomRotation(degrees=rotation_degrees),
+            transforms.ColorJitter(brightness=brightness, contrast=contrast),
             transforms.ToTensor(),
             normalize,
         ])

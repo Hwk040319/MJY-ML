@@ -8,6 +8,8 @@
 
 개선 실험 예시:
     python train_baseline.py --data-root data --augment           --output-dir outputs/exp_aug
+    python train_baseline.py --data-root data --augment --rotation-degrees 15 \
+        --brightness 0.3 --contrast 0.3 --output-dir outputs/exp_aug_custom
     python train_baseline.py --data-root data --use-class-weights --output-dir outputs/exp_weight
     python train_baseline.py --data-root data --lr 1e-4            --output-dir outputs/exp_lr_control
     python train_baseline.py --data-root data --unfreeze --lr 1e-4 --output-dir outputs/exp_ft
@@ -49,13 +51,34 @@ def parse_args():
     ap.add_argument("--num-workers", type=int, default=4)
     ap.add_argument("--augment", action="store_true",
                     help="학습 데이터에 crop/flip/rotation/밝기 변화를 추가")
+    ap.add_argument("--crop-scale-min", type=float, default=0.85,
+                    help="RandomResizedCrop 최소 영역 비율 (기본 0.85, 범위 0 초과~1 이하)")
+    ap.add_argument("--flip-prob", type=float, default=0.5,
+                    help="좌우 반전 확률 (기본 0.5, 범위 0~1)")
+    ap.add_argument("--rotation-degrees", type=float, default=10.0,
+                    help="무작위 회전 최대 각도 (기본 10도, 0 이상)")
+    ap.add_argument("--brightness", type=float, default=0.2,
+                    help="ColorJitter 밝기 변화 강도 (기본 0.2, 0 이상)")
+    ap.add_argument("--contrast", type=float, default=0.2,
+                    help="ColorJitter 대비 변화 강도 (기본 0.2, 0 이상)")
     ap.add_argument("--use-class-weights", action="store_true",
                     help="적은 클래스의 오답에 더 큰 손실을 부여")
     ap.add_argument("--unfreeze", action="store_true",
                     help="backbone 까지 전체 미세조정 (--lr 1e-4 정도를 함께 쓰세요)")
     ap.add_argument("--optimizer", choices=["adamw", "adam", "sgd"], default="adamw",
                     help="가중치를 어떤 규칙으로 업데이트할지 선택 (기본 adamw)")
-    return ap.parse_args()
+    args = ap.parse_args()
+    if not 0.0 < args.crop_scale_min <= 1.0:
+        ap.error("--crop-scale-min은 0보다 크고 1 이하여야 합니다.")
+    if not 0.0 <= args.flip_prob <= 1.0:
+        ap.error("--flip-prob은 0 이상 1 이하여야 합니다.")
+    if args.rotation_degrees < 0.0:
+        ap.error("--rotation-degrees는 0 이상이어야 합니다.")
+    if args.brightness < 0.0:
+        ap.error("--brightness는 0 이상이어야 합니다.")
+    if args.contrast < 0.0:
+        ap.error("--contrast는 0 이상이어야 합니다.")
+    return args
 
 
 def build_model(unfreeze: bool, device, pretrained: bool = True):
@@ -208,7 +231,16 @@ def main():
 
     train_set = BatteryDataset(
         args.data_root, "train",
-        transform=get_transforms(args.image_size, train=True, augment=args.augment))
+        transform=get_transforms(
+            args.image_size,
+            train=True,
+            augment=args.augment,
+            crop_scale_min=args.crop_scale_min,
+            flip_prob=args.flip_prob,
+            rotation_degrees=args.rotation_degrees,
+            brightness=args.brightness,
+            contrast=args.contrast,
+        ))
     val_set = BatteryDataset(
         args.data_root, "public_val",
         transform=get_transforms(args.image_size, train=False))
