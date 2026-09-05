@@ -49,6 +49,15 @@ def parse_args():
     ap.add_argument("--seed", type=int, default=42,
                     help="공정한 비교를 위해 42 고정을 권장합니다")
     ap.add_argument("--num-workers", type=int, default=4)
+
+    # [수강생 수정 안내: 새 증강의 강도를 명령어로 조절하기]
+    # common.py에 증강 한 줄만 직접 추가할 때는 아래 옵션을 바꿀 필요가 없습니다.
+    # 새 증강값도 명령어에서 바꾸고 싶다면 다음 세 곳을 모두 연결합니다.
+    #   1) 이곳에 옵션 등록: ap.add_argument("--blur-kernel-size", type=int, default=3)
+    #   2) common.py의 get_transforms() 매개변수와 Compose 목록에 사용 코드 추가
+    #   3) main()의 get_transforms(...) 호출에 blur_kernel_size=args.blur_kernel_size 전달
+    # 명령어의 하이픈(-)은 Python 코드에서 밑줄(_)로 바뀝니다.
+    # 예: --blur-kernel-size → args.blur_kernel_size
     ap.add_argument("--augment", action="store_true",
                     help="학습 데이터에 crop/flip/rotation/밝기 변화를 추가")
     ap.add_argument("--crop-scale-min", type=float, default=0.85,
@@ -65,6 +74,11 @@ def parse_args():
                     help="적은 클래스의 오답에 더 큰 손실을 부여")
     ap.add_argument("--unfreeze", action="store_true",
                     help="backbone 까지 전체 미세조정 (--lr 1e-4 정도를 함께 쓰세요)")
+
+    # [수강생 수정 안내: 원하는 옵티마이저를 명령어에서 선택하게 만들기 - 1단계]
+    # 아래 choices에 사용할 이름을 추가합니다. 예: "rmsprop"
+    # 이름만 추가하면 아직 실행되지 않으므로, build_optimizer()에도 같은 이름의
+    # 생성 코드를 반드시 추가해야 합니다(아래 '2단계' 주석 참고).
     ap.add_argument("--optimizer", choices=["adamw", "adam", "sgd"], default="adamw",
                     help="가중치를 어떤 규칙으로 업데이트할지 선택 (기본 adamw)")
     args = ap.parse_args()
@@ -103,6 +117,15 @@ def build_optimizer(name: str, params, lr: float, weight_decay: float = 0.0):
     옵티마이저 차이가 CNN을 처음부터 학습할 때만큼 극적이지는 않습니다. 그래도 수렴
     속도와 최종 점수가 조금씩 달라지므로 개선 실험의 한 축으로 다뤄볼 수 있습니다.
     """
+    # [수강생 수정 안내: 원하는 옵티마이저 추가하기 - 2단계]
+    # parse_args()의 choices에 추가한 이름과 같은 조건문을 여기에 작성합니다.
+    # 예를 들어 choices에 "rmsprop"을 추가했다면 다음 두 줄의 주석을 해제합니다.
+    # if name == "rmsprop":
+    #     return torch.optim.RMSprop(params, lr=lr, weight_decay=weight_decay)
+    #
+    # PyTorch 기본 옵티마이저 목록: https://pytorch.org/docs/stable/optim.html
+    # 별도 라이브러리의 옵티마이저는 설치와 import도 필요합니다.
+    # 공정한 비교를 위해 optimizer 외의 epoch, seed, 데이터 조건은 같게 유지하세요.
     if name == "sgd":
         # SGD는 관성(momentum)을 줘야 Adam 계열과 비슷한 속도로 수렴합니다.
         return torch.optim.SGD(params, lr=lr, momentum=0.9, weight_decay=weight_decay)
@@ -240,6 +263,8 @@ def main():
             rotation_degrees=args.rotation_degrees,
             brightness=args.brightness,
             contrast=args.contrast,
+            # common.py의 get_transforms()에 새 조절값을 추가했다면
+            # 위와 같은 방식으로 args.새옵션을 이곳에도 전달해야 합니다.
         ))
     val_set = BatteryDataset(
         args.data_root, "public_val",

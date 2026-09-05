@@ -73,13 +73,24 @@ def get_transforms(
     normalize = transforms.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
 
     if train and augment:
+        # [수강생 수정 안내: 원하는 증강 추가하기]
+        # 1. 아래 transforms.Compose([...]) 목록에 torchvision 증강을 한 줄 추가합니다.
+        # 2. PIL 이미지를 대상으로 하는 증강은 transforms.ToTensor()보다 위에 둡니다.
+        #    예: transforms.GaussianBlur(kernel_size=3),
+        #        transforms.RandomPerspective(distortion_scale=0.2, p=0.3),
+        # 3. 텐서를 대상으로 하는 증강은 transforms.ToTensor() 다음에 둡니다.
+        #    예: transforms.RandomErasing(p=0.2),
+        # 4. normalize는 항상 마지막에 두고, 아래 검증/채점 블록은 수정하지 않습니다.
+        # 5. 어떤 증강이 효과가 있었는지 알 수 있도록 한 실험에서 하나씩 바꿔 보세요.
         return transforms.Compose([
             transforms.Resize((image_size, image_size)),
             transforms.RandomResizedCrop(image_size, scale=(crop_scale_min, 1.0)),
             transforms.RandomHorizontalFlip(p=flip_prob),
             transforms.RandomRotation(degrees=rotation_degrees),
             transforms.ColorJitter(brightness=brightness, contrast=contrast),
+            # 원하는 PIL 이미지용 증강을 이 위치에 추가하세요.
             transforms.ToTensor(),
+            # 원하는 텐서용 증강을 이 위치에 추가하세요.
             normalize,
         ])
     # ↓↓↓ 채점에 사용되는 블록입니다. 수정하지 마세요. ↓↓↓
