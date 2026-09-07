@@ -1,7 +1,5 @@
 # 배터리 열폭주 이미지 분류 미니프로젝트
 
-동력공학 발명 동아리 MJY · 2026
-
 열화상 이미지 한 장을 보고 열폭주 진행 단계를 **초기(0) / 중기(1) / 후기(2)** 중 하나로
 분류하는 모델을 만듭니다. ImageNet 사전학습 ResNet18을 전이학습하는 것이 공통 출발점입니다.
 
@@ -42,7 +40,7 @@ FILE_ID = "13DWY5tg_L4SYxujkdVQ89qEQZC08lr7L"   # 1회차 강의 실습용 (22MB
 | 1회차 강의 실습 | `battery_lecture_sample.tar` (약 700장 · 22MB) |
 | 회차 사이 팀 실험 | `battery_train_val.tar` (약 11GB) |
 
-`private_test` 는 배포되지 않습니다. 상세 설정과 문제 해결은 [docs/SETUP.md](docs/SETUP.md) 를 보세요.
+`private_test` 는 배포되지 않습니다.
 
 ---
 
@@ -56,26 +54,11 @@ FILE_ID = "13DWY5tg_L4SYxujkdVQ89qEQZC08lr7L"   # 1회차 강의 실습용 (22MB
 | `train_baseline.py` | ResNet18 학습, 최고 체크포인트 저장 |
 | `predict_one.py` | 학습한 체크포인트로 이미지 한 장 예측 |
 | `00_quickstart_colab.ipynb` | 위 파일들을 순서대로 실행하는 메인 실습 노트북 |
-| `02_cnn_theory_mnist.ipynb` | (선택) CNN 원리·학습 파라미터를 직접 실험해보는 이론 보충 노트북 |
+| `01_test_colab.ipynb` | 본인 Google Drive에 연결해 전체 데이터로 팀 실험을 진행하고 결과를 저장하는 노트북 |
+| `02_cnn_theory_mnist.ipynb` | CNN 원리·학습 파라미터를 직접 실험해보는 이론 보충 노트북 |
 
 > `predict_test.py` 는 이 저장소에 없습니다. **비공개 Test 이미지는 배포하지 않으며**,
 > 채점은 운영진이 제출받은 체크포인트로 일괄 수행합니다. 아래 "최종 제출" 참고.
-
----
-
-## (선택) CNN 원리를 직접 실습해보고 싶다면
-
-`train_baseline.py`는 이미 학습된 ResNet18을 **빌려 쓰는** 전이학습이라, CNN 내부가 실제로
-어떻게 학습되는지는 이 코드만으로 보기 어렵습니다. [02_cnn_theory_mnist.ipynb](02_cnn_theory_mnist.ipynb)
-는 MNIST 손글씨 숫자로 아주 작은 CNN을 처음부터 학습시키며 다음을 직접 확인하는 보충 실습입니다.
-
-- CNN 구조(Conv → Pool → Dense)가 텐서 모양을 어떻게 바꾸는지
-- epoch 수 / optimizer(sgd·adam·adamw) / activation(relu·leaky_relu·tanh·sigmoid) 을
-  바꾸면 학습 곡선과 최종 정확도가 어떻게 달라지는지
-- Confusion Matrix로 결과를 해석하는 법, 이미지 한 장을 직접 예측해보는 법
-
-채점·제출과는 무관하며, MNIST를 쓰는 이유는 다운로드가 즉시 끝나고 한 epoch이 몇 초 안에
-돌아 구조와 파라미터 자체에 집중할 수 있기 때문입니다.
 
 ---
 
@@ -88,22 +71,16 @@ Baseline 대비 **한 번에 하나의 옵션만** 바꿉니다. 두 개를 동�
 # A. 데이터 증강
 python train_baseline.py --data-root data --augment --epochs 5 --output-dir outputs/exp_aug
 
-# A-1. 데이터 증강 강도 직접 조절
-python train_baseline.py --data-root data --augment \
-  --crop-scale-min 0.75 --flip-prob 0.5 --rotation-degrees 15 \
-  --brightness 0.3 --contrast 0.3 --epochs 5 \
-  --output-dir outputs/exp_aug_custom
-
-# B. 클래스 가중치 (적은 클래스의 오답에 큰 손실)
+# B. 클래스 가중치
 python train_baseline.py --data-root data --use-class-weights --epochs 5 --output-dir outputs/exp_weight
 
-# C1. 미세조정 대조군: backbone은 고정하고 learning rate만 낮춤
+# C1. 미세조정 대조군: backbone 고정, lr만 1e-4로 변경
 python train_baseline.py --data-root data --lr 1e-4 --epochs 5 --output-dir outputs/exp_lr_control
 
-# C2. 전체 미세조정: C1과 같은 learning rate에서 unfreeze만 추가
+# C2. 전체 미세조정: C1과 같은 lr에서 unfreeze만 추가
 python train_baseline.py --data-root data --unfreeze --lr 1e-4 --epochs 5 --output-dir outputs/exp_ft
 
-# D. 옵티마이저 변경 (같은 lr·epoch에서 optimizer만 변경)
+# D. 옵티마이저 변경 (adamw(기본))
 python train_baseline.py --data-root data --optimizer sgd --epochs 5 --output-dir outputs/exp_sgd
 ```
 
@@ -178,10 +155,20 @@ files.download('outputs/exp_aug/best_model.pt')
 
 ## 평가
 
-```
-성능점수 = 70 × (팀 Macro F1 ÷ 1위 팀 Macro F1)
-발표점수 = 30 (문제 이해 / 실험 설계 / 결과 해석 / 한계 인식 각 7.5점)
-총점     = 성능점수 + 발표점수
-```
+순위 = 비공개 Test 성능 70점 + 발표 30점 (둘 다 1등이면 100점)
+동점이면 Macro F1 > Accuracy 순으로 순위를 가립니다.
 
-동점 시 Macro F1 → Accuracy → 제출 시각 순으로 순위를 가립니다.
+| 평가 기준 | Test | 발표 |
+|---|---|---|
+| 1등 | 70 | 30 |
+| 2등 | 68 | 28 |
+| 3등 | 66 | 26 |
+| 4등 | 64 | 24 |
+| 5등 | 62 | 22 |
+| 6등 | 60 | 20 |
+| 7등 | 58 | 18 |
+| 8등 | 56 | 16 |
+| 9등 | 54 | 14 |
+| 10등 | 52 | 12 |
+
+**발표점수**: 카카오톡 투표로 정합니다 (본인 팀 제외). 배포된 템플릿으로 발표 자료를 만들어오세요.
